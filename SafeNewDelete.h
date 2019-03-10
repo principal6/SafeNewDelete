@@ -4,8 +4,6 @@
 #include <cassert>
 #include <vector>
 
-static long long g_log_id{};
-
 class SafeNewDelete
 {
 	struct STraceList
@@ -31,7 +29,7 @@ public:
 			std::cout << "             total delete count : " << m_delete_count << std::endl;
 
 			long long iterator_index{};
-			for (auto& iterator : m_deleted_list)
+			for (auto& iterator : m_trace_list)
 			{
 				if (!iterator.is_deleted)
 				{
@@ -63,7 +61,7 @@ public:
 		{
 			*p_pointer = new T{};
 
-			m_deleted_list.push_back(STraceList(p_pointer));
+			m_trace_list.push_back(STraceList(p_pointer));
 		}
 		catch (std::bad_alloc e)
 		{
@@ -82,7 +80,7 @@ public:
 		{
 			*p_pointer = new T{ init_value };
 
-			m_deleted_list.push_back(STraceList(p_pointer));
+			m_trace_list.push_back(STraceList(p_pointer));
 		}
 		catch (std::bad_alloc e)
 		{
@@ -103,7 +101,7 @@ public:
 			*p_pointer = nullptr;
 			
 			long long iterator_index{};
-			for (auto& iterator : m_deleted_list)
+			for (auto& iterator : m_trace_list)
 			{
 				if (iterator.pointer == p_pointer)
 				{
@@ -128,38 +126,41 @@ public:
 		}
 	}
 
+	void log_new(long long nd_id, const std::type_info& type_id, const char* var_name, const char* function, const char* file, int line)
+	{
+		std::cout << "[LOG #" << m_log_id << "  < LOG_NEW #" << nd_id << " > ]" << std::endl;
+		std::cout << "  -FILE (" << file << ")" << std::endl;
+		std::cout << "  -LINE (" << line << ") - " << function << "()" << std::endl;
+		std::cout << "  new (" << type_id.name() << ") " << var_name << ";" << std::endl;
+		std::cout << std::endl;
+
+		++m_log_id;
+	}
+
+	void log_delete(const std::type_info& type_id, const char* var_name, const char* function, const char* file, int line)
+	{
+		std::cout << "[LOG #" << m_log_id << "]" << std::endl;
+		std::cout << "  -FILE (" << file << ")" << std::endl;
+		std::cout << "  -LINE (" << line << ") - " << function << "()" << std::endl;
+		std::cout << "  delete (" << type_id.name() << ") " << var_name << "; ";
+
+		++m_log_id;
+	}
+
 	auto get_new_id() const noexcept { return m_new_count; };
 
+
 private:
+	long long m_log_id;
+
 	long long m_new_count{};
 	long long m_delete_count{};
 
-	std::vector<STraceList> m_deleted_list;
+	std::vector<STraceList> m_trace_list;
 };
-
-inline void log_new(long long nd_id, const std::type_info& type_id, const char* var_name, const char* function, const char* file, int line)
-{
-	std::cout << "[LOG #" << g_log_id << "  < LOG_NEW #" << nd_id << " > ]" << std::endl;
-	std::cout << "  -FILE (" << file << ")" << std::endl;
-	std::cout << "  -LINE (" << line << ") - " << function << "()" << std::endl;
-	std::cout << "  new (" << type_id.name() << ") " << var_name << ";" << std::endl;
-	std::cout << std::endl;
-
-	++g_log_id;
-}
-
-inline void log_delete(const std::type_info& type_id, const char* var_name, const char* function, const char* file, int line)
-{
-	std::cout << "[LOG #" << g_log_id << "]" << std::endl;
-	std::cout << "  -FILE (" << file << ")" << std::endl;
-	std::cout << "  -LINE (" << line << ") - " << function << "()" << std::endl;
-	std::cout << "  delete (" << type_id.name() << ") " << var_name << "; ";
-
-	++g_log_id;
-}
 
 static SafeNewDelete snd;
 
-#define new_s(pPointer) { log_new(snd.get_new_id(), typeid(pPointer), #pPointer, __func__, __FILE__, __LINE__); snd.new_s<std::remove_pointer<decltype(pPointer)>::type>(&pPointer); }
-#define new_init_s(pPointer, Value) { log_new(snd.get_new_id(), typeid(pPointer), #pPointer, __func__, __FILE__, __LINE__); snd.new_s<std::remove_pointer<decltype(pPointer)>::type>(&pPointer, Value); }
-#define delete_s(pPointer) { log_delete(typeid(pPointer), #pPointer, __func__, __FILE__, __LINE__); snd.delete_s(&pPointer); }
+#define new_s(pPointer) { snd.log_new(snd.get_new_id(), typeid(pPointer), #pPointer, __func__, __FILE__, __LINE__); snd.new_s<std::remove_pointer<decltype(pPointer)>::type>(&pPointer); }
+#define new_init_s(pPointer, Value) { snd.log_new(snd.get_new_id(), typeid(pPointer), #pPointer, __func__, __FILE__, __LINE__); snd.new_s<std::remove_pointer<decltype(pPointer)>::type>(&pPointer, Value); }
+#define delete_s(pPointer) { snd.log_delete(typeid(pPointer), #pPointer, __func__, __FILE__, __LINE__); snd.delete_s(&pPointer); }
